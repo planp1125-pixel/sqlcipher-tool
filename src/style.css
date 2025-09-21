@@ -1,0 +1,10 @@
+:root { color-scheme: light dark; }
+html, body, #app { height: 100%; }
+* { outline-color: #60a5fa; }              /* prettier focus */
+::selection { background:#60a5fa40; }      /* soft selection */
+@media (prefers-color-scheme: dark) {
+  html:not(.dark).force-dark { background:#0b0f19 }
+}
+/* subtle scrollbars */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(120,120,120,.35);border-radius:8px}
