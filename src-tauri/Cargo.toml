@@ -19,10 +19,18 @@ tauri-plugin-opener = "2.5.0"
 tauri-plugin-dialog = "2.3.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Platform-specific SQLite dependencies
+[target.'cfg(not(windows))'.dependencies]
 rusqlite = { version = "0.32", features = ["bundled", "sqlcipher", "bundled-sqlcipher"] }
 libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
-openssl = { version = "0.10", features = ["vendored"] }
 
+[target.'cfg(windows)'.dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+libsqlite3-sys = { version = "0.30.1", features = ["bundled"] }
+
+# Common dependencies
+openssl = { version = "0.10", features = ["vendored"] }
 tokio = { version = "1.0", features = ["full", "time"] }
 anyhow = "1.0"
 thiserror = "1.0"
@@ -32,22 +40,5 @@ base64 = "0.22.1"
 lto = true
 panic = "abort"
 
-[profile.release.target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-feature=+crt-static"]
-
-[target.x86_64-pc-windows-gnu]
-rustflags = ["-C", "target-feature=+crt-static"]
-
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
-
-# Add Windows-specific dependencies
-[target.'cfg(windows)'.dependencies]
-native-tls = "0.2"
-winapi = { version = "0.3", features = ["winuser", "consoleapi"] }
-
 [features]
-# this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
-# If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
-# DO NOT REMOVE!!
 custom-protocol = [ "tauri/custom-protocol" ]
