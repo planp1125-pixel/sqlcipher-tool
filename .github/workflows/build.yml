@@ -8,6 +8,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build:
     permissions:
@@ -18,10 +21,13 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
+            target: 'universal-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
+            target: 'x86_64-unknown-linux-gnu'
           - platform: 'windows-latest'
             args: ''
+            target: 'x86_64-pc-windows-msvc'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -45,46 +51,119 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.target }}
+
+      # Install additional Windows tools and setup OpenSSL
+      - name: Install Windows build tools and setup OpenSSL
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Install required tools
+          choco install nasm -y
+          
+          # Create OpenSSL directory structure that libsqlite3-sys expects
+          New-Item -ItemType Directory -Force -Path "C:\openssl"
+          New-Item -ItemType Directory -Force -Path "C:\openssl\lib"
+          New-Item -ItemType Directory -Force -Path "C:\openssl\include"
+          New-Item -ItemType Directory -Force -Path "C:\openssl\include\openssl"
+          
+          # Create minimal openssl headers (dummy files to satisfy build script)
+          @"
+          #ifndef OPENSSL_VERSION_H
+          #define OPENSSL_VERSION_H
+          #define OPENSSL_VERSION_NUMBER 0x30000000L
+          #endif
+          "@ | Out-File -FilePath "C:\openssl\include\openssl\opensslv.h" -Encoding ASCII
+          
+          # Add NASM to PATH
+          echo "C:\Program Files\NASM" >> $env:GITHUB_PATH
 
       # Rust cache
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+          key: ${{ matrix.platform }}-${{ matrix.target }}
+
+      # Windows-specific environment setup for SQLCipher
+      - name: Setup Windows SQLCipher environment
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Set OpenSSL directory (required by libsqlite3-sys build script)
+          echo "OPENSSL_DIR=C:\openssl" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=C:\openssl\lib" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=C:\openssl\include" >> $env:GITHUB_ENV
+          
+          # SQLCipher bundling flags
+          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $env:GITHUB_ENV
+          echo "SQLCIPHER_BUNDLED=1" >> $env:GITHUB_ENV
+          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $env:GITHUB_ENV
+          
+          # OpenSSL flags - use vendored but set DIR to satisfy build script
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_VENDORED=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_NO_VENDOR=0" >> $env:GITHUB_ENV
+          
+          # Ensure we use MSVC toolchain
+          echo "CC=cl.exe" >> $env:GITHUB_ENV
+          echo "CXX=cl.exe" >> $env:GITHUB_ENV
+
+      # macOS/Linux environment setup
+      - name: Setup Unix SQLCipher environment
+        if: matrix.platform != 'windows-latest'
+        run: |
+          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $GITHUB_ENV
+          echo "SQLCIPHER_BUNDLED=1" >> $GITHUB_ENV
+          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $GITHUB_ENV
 
       # Install frontend dependencies
       - name: Install frontend dependencies
         run: npm ci
 
-      # Build the frontend (if you have a build step)
+      # Build the frontend
       - name: Build frontend
         run: npm run build
+
+      # Pre-build test (optional - helps debug issues)
+      - name: Test SQLCipher compilation
+        working-directory: src-tauri
+        run: cargo check --features bundled-sqlcipher
 
       # Build and release using Tauri Action
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SQLCipher environment variables
+          LIBSQLITE3_SYS_USE_PKG_CONFIG: 0
+          SQLCIPHER_BUNDLED: 1
+          LIBSQLITE3_SYS_BUNDLED_SQLCIPHER: 1
+          # OpenSSL environment variables
+          OPENSSL_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\openssl' || '' }}
+          OPENSSL_LIB_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\openssl\lib' || '' }}
+          OPENSSL_INCLUDE_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\openssl\include' || '' }}
+          OPENSSL_STATIC: 1
+          OPENSSL_VENDORED: 1
+          OPENSSL_NO_VENDOR: 0
         with:
           tagName: 'sqlcipher-tool-v__VERSION__'
           releaseName: 'SQLCipher Tool v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: |
+            ## SQLCipher Database Schema Comparison Tool v__VERSION__
+            
+            ### Features:
+            - Compare SQLCipher database schemas
+            - Cross-platform support (Windows, macOS, Linux)
+            - Built with Tauri + Vue.js
+            
+            ### Download:
+            - **Windows**: Download the `.msi` installer or `.exe` portable
+            - **macOS**: Download the `.dmg` file
+            - **Linux**: Download the `.AppImage` or `.deb` package
+            
+            ### Installation:
+            See the assets below to download and install this version.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-
-  release:
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-      - name: Publish Release
-        uses: eregon/publish-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          release_id: ${{ needs.build.outputs.releaseId }}
