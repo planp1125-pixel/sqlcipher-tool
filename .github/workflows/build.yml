@@ -125,11 +125,6 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      # Pre-build test (optional - helps debug issues)
-      - name: Test SQLCipher compilation
-        working-directory: src-tauri
-        run: cargo check
-
       # Build and release using Tauri Action
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
