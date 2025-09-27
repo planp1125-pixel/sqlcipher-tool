@@ -50,3 +50,4 @@ custom-protocol = [ "tauri/custom-protocol" ]
 # SQLCipher features for easier building
 sqlcipher = ["rusqlite/bundled-sqlcipher"]
 default = ["sqlcipher"]
+bundled-sqlcipher = ["rusqlite/bundled-sqlcipher"]
