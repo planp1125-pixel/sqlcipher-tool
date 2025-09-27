@@ -20,17 +20,11 @@ tauri-plugin-dialog = "2.3.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Platform-specific SQLite dependencies
-[target.'cfg(not(windows))'.dependencies]
+# SQLCipher dependencies - same for all platforms
 rusqlite = { version = "0.32", features = ["bundled", "sqlcipher", "bundled-sqlcipher"] }
-libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher"] }
-
-[target.'cfg(windows)'.dependencies]
-rusqlite = { version = "0.32", features = ["bundled"] }
-libsqlite3-sys = { version = "0.30.1", features = ["bundled"] }
-
-# Common dependencies
+libsqlite3-sys = { version = "0.30.1", features = ["bundled-sqlcipher", "bundled"] }
 openssl = { version = "0.10", features = ["vendored"] }
+
 tokio = { version = "1.0", features = ["full", "time"] }
 anyhow = "1.0"
 thiserror = "1.0"
@@ -40,5 +34,19 @@ base64 = "0.22.1"
 lto = true
 panic = "abort"
 
+# Windows-specific build configuration
+[target.'cfg(windows)'.build-dependencies]
+cc = "1.0"
+pkg-config = "0.3"
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "target-feature=+crt-static"]
+
 [features]
 custom-protocol = [ "tauri/custom-protocol" ]
+# SQLCipher features for easier building
+sqlcipher = ["rusqlite/bundled-sqlcipher"]
+default = ["sqlcipher"]
