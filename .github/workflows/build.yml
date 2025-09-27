@@ -53,6 +53,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # Setup MSVC on Windows
+      - name: Setup MSVC on Windows
+        if: matrix.platform == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       # Install additional Windows tools and setup OpenSSL
       - name: Install Windows build tools and setup OpenSSL
         if: matrix.platform == 'windows-latest'
@@ -104,10 +111,6 @@ jobs:
           echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
           echo "OPENSSL_VENDORED=1" >> $env:GITHUB_ENV
           echo "OPENSSL_NO_VENDOR=0" >> $env:GITHUB_ENV
-          
-          # Ensure we use MSVC toolchain
-          echo "CC=cl.exe" >> $env:GITHUB_ENV
-          echo "CXX=cl.exe" >> $env:GITHUB_ENV
 
       # macOS/Linux environment setup
       - name: Setup Unix SQLCipher environment
