@@ -128,7 +128,7 @@ jobs:
       # Pre-build test (optional - helps debug issues)
       - name: Test SQLCipher compilation
         working-directory: src-tauri
-        run: cargo check --features bundled-sqlcipher
+        run: cargo check
 
       # Build and release using Tauri Action
       - name: Build Tauri app
