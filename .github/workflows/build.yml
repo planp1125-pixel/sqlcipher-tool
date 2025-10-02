@@ -60,11 +60,14 @@ jobs:
         with:
           arch: x64
 
-      # Install OpenSSL via vcpkg on Windows
-      - name: Install OpenSSL via vcpkg (Windows)
+      # Install Windows dependencies and setup vcpkg
+      - name: Install Windows dependencies and setup vcpkg
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
+          # Install required tools
+          choco install nasm strawberryperl -y
+          
           # Clone and setup vcpkg
           git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
           cd C:\vcpkg
