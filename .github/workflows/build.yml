@@ -4,8 +4,6 @@ on:
   push:
     branches: [ main, release ]
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
@@ -21,13 +19,10 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
-            target: 'universal-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-            target: 'x86_64-unknown-linux-gnu'
           - platform: 'windows-latest'
             args: ''
-            target: 'x86_64-pc-windows-msvc'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -38,7 +33,12 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libsoup-3.0-dev
 
       # Setup Node.js
       - name: Setup Node.js
@@ -50,8 +50,6 @@ jobs:
       # Setup Rust
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       # Setup MSVC on Windows
       - name: Setup MSVC on Windows
@@ -60,52 +58,19 @@ jobs:
         with:
           arch: x64
 
-      # Install Windows dependencies with OpenSSL
-      - name: Install Windows dependencies
+      # Install Windows build tools for vendored OpenSSL
+      - name: Install Windows build tools
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          # Install OpenSSL via chocolatey
-          choco install openssl -y
-          
-          # Find OpenSSL installation path
-          $opensslPath = Get-ChildItem "C:\Program Files\OpenSSL*" | Select-Object -First 1 -ExpandProperty FullName
-          Write-Host "Found OpenSSL at: $opensslPath"
-          
-          # Find Windows SDK lib path
-          $sdkPath = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Lib\" -Directory | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
-          Write-Host "Found Windows SDK at: $sdkPath"
-          
-          # Set environment variables
-          echo "OPENSSL_DIR=$opensslPath" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslPath\lib\VC\x64\MT" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$opensslPath\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
-          echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
-          
-          # SQLCipher flags
-          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $env:GITHUB_ENV
-          echo "SQLCIPHER_BUNDLED=1" >> $env:GITHUB_ENV
-          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $env:GITHUB_ENV
-          
-          # Add Windows system library paths with proper escaping
-          echo "RUSTFLAGS=-L `"$sdkPath\um\x64`" -L `"$sdkPath\ucrt\x64`"" >> $env:GITHUB_ENV
+          choco install nasm strawberryperl -y
 
       # Rust cache
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-          key: ${{ matrix.platform }}-${{ matrix.target }}
-
-      # macOS/Linux environment setup
-      - name: Setup Unix SQLCipher environment
-        if: matrix.platform != 'windows-latest'
-        run: |
-          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $GITHUB_ENV
-          echo "SQLCIPHER_BUNDLED=1" >> $GITHUB_ENV
-          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $GITHUB_ENV
-          echo "OPENSSL_VENDORED=1" >> $GITHUB_ENV
+          key: ${{ matrix.platform }}
 
       # Install frontend dependencies
       - name: Install frontend dependencies
@@ -120,17 +85,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LIBSQLITE3_SYS_USE_PKG_CONFIG: 0
-          SQLCIPHER_BUNDLED: 1
-          LIBSQLITE3_SYS_BUNDLED_SQLCIPHER: 1
         with:
           tagName: 'sqlcipher-tool-v__VERSION__'
           releaseName: 'SQLCipher Tool v__VERSION__'
           releaseBody: |
-            ## SQLCipher Database Schema Comparison Tool v__VERSION__
+            ## Database Schema Comparison Tool v__VERSION__
             
             ### Features:
-            - Compare SQLCipher database schemas
+            - Compare database schemas
             - Cross-platform support (Windows, macOS, Linux)
             - Built with Tauri + Vue.js
             
@@ -138,9 +100,6 @@ jobs:
             - **Windows**: Download the `.msi` installer or `.exe` portable
             - **macOS**: Download the `.dmg` file
             - **Linux**: Download the `.AppImage` or `.deb` package
-            
-            ### Installation:
-            See the assets below to download and install this version.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
