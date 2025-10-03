@@ -38,12 +38,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libsoup-3.0-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       # Setup Node.js
       - name: Setup Node.js
@@ -65,12 +60,37 @@ jobs:
         with:
           arch: x64
 
-      # Install Windows dependencies (simplified)
+      # Install Windows dependencies with OpenSSL
       - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          choco install nasm strawberryperl -y
+          # Install OpenSSL via chocolatey
+          choco install openssl -y
+          
+          # Find OpenSSL installation path
+          $opensslPath = Get-ChildItem "C:\Program Files\OpenSSL*" | Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Found OpenSSL at: $opensslPath"
+          
+          # Find Windows SDK lib path
+          $sdkPath = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Lib\" -Directory | Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Found Windows SDK at: $sdkPath"
+          
+          # Set environment variables
+          echo "OPENSSL_DIR=$opensslPath" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslPath\lib\VC\x64\MT" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$opensslPath\include" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
+          
+          # SQLCipher flags
+          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $env:GITHUB_ENV
+          echo "SQLCIPHER_BUNDLED=1" >> $env:GITHUB_ENV
+          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $env:GITHUB_ENV
+          
+          # Add Windows system library paths
+          $rustflags = "-L $sdkPath\um\x64 -L $sdkPath\ucrt\x64"
+          echo "RUSTFLAGS=$rustflags" >> $env:GITHUB_ENV
 
       # Rust cache
       - name: Rust cache
@@ -78,6 +98,15 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
           key: ${{ matrix.platform }}-${{ matrix.target }}
+
+      # macOS/Linux environment setup
+      - name: Setup Unix SQLCipher environment
+        if: matrix.platform != 'windows-latest'
+        run: |
+          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $GITHUB_ENV
+          echo "SQLCIPHER_BUNDLED=1" >> $GITHUB_ENV
+          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $GITHUB_ENV
+          echo "OPENSSL_VENDORED=1" >> $GITHUB_ENV
 
       # Install frontend dependencies
       - name: Install frontend dependencies
@@ -92,6 +121,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LIBSQLITE3_SYS_USE_PKG_CONFIG: 0
+          SQLCIPHER_BUNDLED: 1
+          LIBSQLITE3_SYS_BUNDLED_SQLCIPHER: 1
         with:
           tagName: 'sqlcipher-tool-v__VERSION__'
           releaseName: 'SQLCipher Tool v__VERSION__'
