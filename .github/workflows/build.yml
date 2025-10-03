@@ -60,25 +60,29 @@ jobs:
         with:
           arch: x64
 
-      # Install Windows dependencies and setup vcpkg
-      - name: Install Windows dependencies and setup vcpkg
+      # Install Windows dependencies with OpenSSL
+      - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          # Install required tools
-          choco install nasm strawberryperl -y
+          # Install OpenSSL via chocolatey (faster than vcpkg)
+          choco install openssl -y
           
-          # Clone and setup vcpkg
-          git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
-          cd C:\vcpkg
-          .\bootstrap-vcpkg.bat
+          # Find OpenSSL installation path
+          $opensslPath = Get-ChildItem "C:\Program Files\OpenSSL*" | Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Found OpenSSL at: $opensslPath"
           
-          # Install OpenSSL static library
-          .\vcpkg install openssl:x64-windows-static
+          # Set environment variables
+          echo "OPENSSL_DIR=$opensslPath" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslPath\lib\VC\x64\MT" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$opensslPath\include" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+          echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
           
-          # Verify installation
-          ls "C:\vcpkg\installed\x64-windows-static\include\openssl"
-          ls "C:\vcpkg\installed\x64-windows-static\lib"
+          # SQLCipher flags
+          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $env:GITHUB_ENV
+          echo "SQLCIPHER_BUNDLED=1" >> $env:GITHUB_ENV
+          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $env:GITHUB_ENV
 
       # Rust cache
       - name: Rust cache
@@ -86,25 +90,6 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
           key: ${{ matrix.platform }}-${{ matrix.target }}
-
-      # Windows-specific environment setup for SQLCipher
-      - name: Setup Windows SQLCipher environment
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          # Set OpenSSL directory to vcpkg installation
-          echo "OPENSSL_DIR=C:\vcpkg\installed\x64-windows-static" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=C:\vcpkg\installed\x64-windows-static\lib" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=C:\vcpkg\installed\x64-windows-static\include" >> $env:GITHUB_ENV
-          
-          # SQLCipher bundling flags
-          echo "LIBSQLITE3_SYS_USE_PKG_CONFIG=0" >> $env:GITHUB_ENV
-          echo "SQLCIPHER_BUNDLED=1" >> $env:GITHUB_ENV
-          echo "LIBSQLITE3_SYS_BUNDLED_SQLCIPHER=1" >> $env:GITHUB_ENV
-          
-          # OpenSSL flags - use static linking
-          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
-          echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
 
       # macOS/Linux environment setup
       - name: Setup Unix SQLCipher environment
@@ -128,17 +113,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SQLCipher environment variables
           LIBSQLITE3_SYS_USE_PKG_CONFIG: 0
           SQLCIPHER_BUNDLED: 1
           LIBSQLITE3_SYS_BUNDLED_SQLCIPHER: 1
-          # OpenSSL environment variables - conditional for Windows vs others
-          OPENSSL_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\vcpkg\installed\x64-windows-static' || '' }}
-          OPENSSL_LIB_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\vcpkg\installed\x64-windows-static\lib' || '' }}
-          OPENSSL_INCLUDE_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\vcpkg\installed\x64-windows-static\include' || '' }}
-          OPENSSL_STATIC: ${{ matrix.platform == 'windows-latest' && '1' || '0' }}
-          OPENSSL_VENDORED: ${{ matrix.platform != 'windows-latest' && '1' || '0' }}
-          OPENSSL_NO_VENDOR: ${{ matrix.platform == 'windows-latest' && '1' || '0' }}
         with:
           tagName: 'sqlcipher-tool-v__VERSION__'
           releaseName: 'SQLCipher Tool v__VERSION__'
