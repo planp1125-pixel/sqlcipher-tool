@@ -28,10 +28,10 @@
     "active": true,
     "targets": "all",
     "icon": [
-        "icons/icon.ico" // This MUST be present and correct
+        "icons/icon.ico"
       ],
       "windows": {
-        "icon": "icons/icon.ico" // This specific path should be here too
+        "icon": "icons/icon.ico"
       },
     "linux": {
       "deb": {
