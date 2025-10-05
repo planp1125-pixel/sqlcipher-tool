@@ -28,11 +28,9 @@
     "active": true,
     "targets": "all",
     "icon": [
-        "icons/icon.ico"
-      ],
-      "windows": {
-        "icon": "icons/icon.ico"
-      },
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
     "linux": {
       "deb": {
         "depends": []
