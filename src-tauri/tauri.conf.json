@@ -28,9 +28,11 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/logo1.png",
-      "icons/logo1.png"
-    ],
+        "icons/icon.ico" // This MUST be present and correct
+      ],
+      "windows": {
+        "icon": "icons/icon.ico" // This specific path should be here too
+      },
     "linux": {
       "deb": {
         "depends": []
