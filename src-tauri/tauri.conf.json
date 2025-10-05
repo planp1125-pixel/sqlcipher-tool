@@ -28,8 +28,8 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/logo1.png",
-      "icons/logo1.png"
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "linux": {
       "deb": {

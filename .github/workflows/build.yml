@@ -181,3 +181,12 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # Upload exe even if bundling fails
+      - name: Upload Windows exe
+        if: matrix.platform == 'windows-latest' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: src-tauri/target/release/sqlcipher-tool.exe
+          if-no-files-found: warn
